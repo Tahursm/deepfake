@@ -14,7 +14,9 @@ soundfile>=0.12.0
 scipy>=1.11.0
 
 # Data Processing
-numpy>=1.24.0
+# Note: numpy<2.0 required for mediapipe compatibility. Some packages may show warnings
+# about requiring numpy>=2.0, but they should still function with numpy 1.x
+numpy>=1.24.0,<2.0.0
 pandas>=2.0.0
 scikit-learn>=1.3.0
 
@@ -39,10 +41,10 @@ wandb>=0.15.0
 # Video Processing
 ffmpeg-python>=0.2.0
 
-# Protobuf version constraint (to avoid conflicts with mysql-connector-python if installed)
-# If you don't need mysql-connector-python, uninstall it: pip uninstall mysql-connector-python
-# Otherwise, this version should work with most packages
-protobuf>=4.21.0,<4.26.0
+# Protobuf version constraint (updated to resolve conflicts with ydf, opentelemetry-proto, grpcio-status)
+# Note: If you need mysql-connector-python, you may need to uninstall it first:
+# pip uninstall mysql-connector-python
+protobuf>=5.29.1,<6.0.0
 
 # Optional: For better performance
 # Install CUDA-enabled PyTorch if GPU available
