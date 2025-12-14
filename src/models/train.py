@@ -11,7 +11,7 @@ import numpy as np
 from pathlib import Path
 import yaml
 from tqdm import tqdm
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 import argparse
 import sys
 import platform
@@ -31,17 +31,31 @@ from sklearn.metrics import accuracy_score, roc_auc_score, precision_recall_fsco
 
 
 class FocalLoss(nn.Module):
-    """Focal loss for handling class imbalance."""
+    """Focal loss for handling class imbalance with per-class alpha weights."""
     
-    def __init__(self, alpha: float = 1.0, gamma: float = 2.0):
+    def __init__(self, alpha: float = 1.0, gamma: float = 2.0, alpha_per_class: Optional[torch.Tensor] = None):
         super().__init__()
         self.alpha = alpha
         self.gamma = gamma
+        # alpha_per_class: tensor of shape [num_classes] for per-class weighting
+        # If None, uses uniform alpha. If provided, overrides self.alpha
+        if alpha_per_class is not None:
+            self.register_buffer('alpha_per_class', alpha_per_class)
+        else:
+            self.alpha_per_class = None
     
     def forward(self, inputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
         ce_loss = nn.CrossEntropyLoss(reduction='none')(inputs, targets)
         pt = torch.exp(-ce_loss)
-        focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+        
+        # Apply per-class alpha if provided
+        if self.alpha_per_class is not None:
+            # Get alpha for each sample based on its class
+            alpha_t = self.alpha_per_class[targets]
+            focal_loss = alpha_t * (1 - pt) ** self.gamma * ce_loss
+        else:
+            focal_loss = self.alpha * (1 - pt) ** self.gamma * ce_loss
+        
         return focal_loss.mean()
 
 
@@ -76,14 +90,54 @@ class Trainer:
         self.checkpoint_dir = checkpoint_dir
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
         
+        # Calculate class weights for imbalanced datasets
+        # Count samples per class in training set
+        print("📊 Calculating class weights from training data...")
+        class_counts = torch.zeros(2)  # 2 classes: real (0) and fake (1)
+        for batch in train_loader:
+            labels = batch['label']
+            for label in labels:
+                class_counts[label.item()] += 1
+        
+        # Calculate inverse frequency weights (more weight to minority class)
+        total_samples = class_counts.sum()
+        if total_samples > 0 and class_counts.min() > 0:
+            # Inverse frequency weighting: weight = total / (num_classes * count)
+            class_weights = total_samples / (2.0 * class_counts)
+            # Normalize so they sum to num_classes
+            class_weights = class_weights / class_weights.sum() * 2.0
+            print(f"   Class distribution - Real: {class_counts[0]:.0f}, Fake: {class_counts[1]:.0f}")
+            print(f"   Class weights - Real: {class_weights[0]:.3f}, Fake: {class_weights[1]:.3f}")
+        else:
+            class_weights = torch.ones(2)  # Equal weights if can't calculate
+            print("⚠️  Could not calculate class weights, using equal weights")
+        
         # Loss function
         if config.get('use_focal_loss', False):
+            # Use per-class alpha weights based on class imbalance
+            # Give more weight to fake class (minority) if it's underrepresented
+            focal_alpha_per_class = config.get('focal_alpha_per_class', None)
+            if focal_alpha_per_class is None:
+                # Auto-calculate: use class weights as alpha (inverse frequency)
+                # This gives more weight to the minority class (fake)
+                focal_alpha_per_class = class_weights.to(device)
+            else:
+                focal_alpha_per_class = torch.tensor(focal_alpha_per_class, dtype=torch.float32, device=device)
+            
             self.criterion = FocalLoss(
                 alpha=config.get('focal_alpha', 1.0),
-                gamma=config.get('focal_gamma', 2.0)
+                gamma=config.get('focal_gamma', 2.0),
+                alpha_per_class=focal_alpha_per_class
             )
+            print(f"✅ Focal loss with per-class alpha: Real={focal_alpha_per_class[0]:.3f}, Fake={focal_alpha_per_class[1]:.3f}")
         else:
-            self.criterion = nn.CrossEntropyLoss(label_smoothing=config.get('label_smoothing', 0.0))
+            # Use weighted CrossEntropyLoss for class imbalance
+            weight = class_weights.to(device)
+            self.criterion = nn.CrossEntropyLoss(
+                weight=weight,
+                label_smoothing=config.get('label_smoothing', 0.0)
+            )
+            print(f"✅ Weighted CrossEntropyLoss with class weights: Real={weight[0]:.3f}, Fake={weight[1]:.3f}")
         
         self.auxiliary_loss_weight = config.get('auxiliary_loss_weight', 0.1)
         

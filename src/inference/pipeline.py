@@ -230,10 +230,20 @@ class DeepfakeInferencePipeline:
                 return_embeddings=return_explanations
             )
         
-        # Get prediction with confidence threshold
+        # Get prediction with adjustable threshold for better fake detection
         probs = output['probs'][0].cpu().numpy()
-        prediction_idx = int(np.argmax(probs))
-        confidence = float(probs[prediction_idx])
+        
+        # Adjustable decision threshold (lower threshold for fake = more sensitive to fakes)
+        # Default 0.5 means standard argmax. Lower values (e.g., 0.4) favor fake detection
+        fake_threshold = 0.4  # If fake prob > this, predict fake (even if real prob is higher)
+        
+        # Use threshold-based decision to reduce false negatives for fake videos
+        if probs[1] >= fake_threshold:
+            prediction_idx = 1  # Predict fake if probability exceeds threshold
+            confidence = float(probs[1])
+        else:
+            prediction_idx = int(np.argmax(probs))  # Standard argmax otherwise
+            confidence = float(probs[prediction_idx])
         
         # Apply confidence threshold (if confidence is too low, mark as uncertain)
         confidence_threshold = 0.5  # Minimum confidence for reliable prediction
@@ -246,7 +256,8 @@ class DeepfakeInferencePipeline:
             'probabilities': {
                 'real': float(probs[0]),
                 'fake': float(probs[1])
-            }
+            },
+            'decision_threshold_used': fake_threshold
         }
         
         # Generate explanations if requested

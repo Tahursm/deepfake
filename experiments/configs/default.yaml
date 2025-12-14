@@ -30,8 +30,9 @@ training:
   
   # Loss configuration - enabled focal loss for better class imbalance handling
   use_focal_loss: true  # Enabled for better handling of imbalanced datasets
-  focal_alpha: 1.0
-  focal_gamma: 2.0
+  focal_alpha: 1.0  # Base alpha (overridden by focal_alpha_per_class if provided)
+  focal_gamma: 2.0  # Focusing parameter (higher = more focus on hard examples)
+  # focal_alpha_per_class: [0.5, 2.0]  # Per-class alpha: [real, fake] - auto-calculated if not set
   label_smoothing: 0.1
   auxiliary_loss_weight: 0.1
   
