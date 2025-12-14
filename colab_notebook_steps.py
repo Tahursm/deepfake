@@ -27,13 +27,39 @@ print("✅ All dependencies installed!")
 # CELL 2: Clone Repository from GitHub
 # ============================================================================
 """
-# Clone your repository (replace with your GitHub URL)
-# !git clone https://github.com/YOUR_USERNAME/YOUR_REPO_NAME.git
-# !mv YOUR_REPO_NAME/* .
-# !mv YOUR_REPO_NAME/.* . 2>/dev/null || true
+# Clone the repository from GitHub
+print("📥 Cloning repository from GitHub...")
 
-# Or if you haven't pushed to GitHub yet, you can upload files manually
-# using the Files tab on the left sidebar
+# Update this with your GitHub repository URL
+GITHUB_REPO = "https://github.com/Tahursm/deepfake.git"
+
+!git clone https://github.com/Tahursm/deepfake.git
+
+# Move all files to current directory
+import shutil
+import os
+
+repo_name = "deepfake"  # Change if your repo has a different name
+if os.path.exists(repo_name):
+    # Copy all files
+    for item in os.listdir(repo_name):
+        src = os.path.join(repo_name, item)
+        dst = item
+        if os.path.isdir(src):
+            if os.path.exists(dst):
+                shutil.rmtree(dst)
+            shutil.copytree(src, dst)
+        else:
+            shutil.copy2(src, dst)
+    
+    # Remove the cloned directory
+    shutil.rmtree(repo_name)
+    
+    print("✅ Repository cloned and files moved!")
+    print("📁 Project structure:")
+    !ls -la
+else:
+    print("⚠️  Repository not found. Please check the GITHUB_REPO URL.")
 """
 
 # ============================================================================
