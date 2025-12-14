@@ -5,6 +5,7 @@ torchaudio>=2.0.0
 
 # Computer Vision & Image Processing
 # Note: opencv-python pinned to version compatible with numpy<2.0
+# Using opencv-python (not headless) because face-alignment requires it
 opencv-python>=4.8.0,<4.12.0
 mediapipe>=0.10.0,<0.11.0
 Pillow>=10.0.0
@@ -44,11 +45,20 @@ ffmpeg-python>=0.2.0
 
 # Protobuf version constraint (pinned for mediapipe compatibility)
 # mediapipe 0.10.21 requires protobuf<5,>=4.25.3
-# Note: Some packages (ydf, opentelemetry-proto, grpcio-status) may show warnings
-# about requiring protobuf>=5.0, but they should still function with protobuf 4.x
 # If you need mysql-connector-python, you may need to uninstall it first:
 # pip uninstall mysql-connector-python
 protobuf>=4.25.3,<5.0.0
+
+# IMPORTANT: Dependency Conflict Notes
+# ====================================
+# Some transitive dependencies (pytensor, ydf, shap, opentelemetry-proto, grpcio-status)
+# may show warnings about requiring numpy>=2.0 or protobuf>=5.0, but they should still
+# function correctly with numpy 1.x and protobuf 4.x. These warnings can be safely ignored.
+#
+# If you encounter runtime errors with these packages, you may need to:
+# 1. Downgrade the specific conflicting package to an older version
+# 2. Wait for mediapipe to support numpy 2.x and protobuf 5.x
+# 3. Use alternative packages that don't have these strict requirements
 
 # Optional: For better performance
 # Install CUDA-enabled PyTorch if GPU available

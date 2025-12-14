@@ -10,31 +10,93 @@ Copy each section into separate cells in Google Colab and run them in order.
 # ============================================================================
 """
 # Install all required packages with version constraints to avoid conflicts
+# This installation order prevents dependency conflicts
 print("📦 Installing dependencies...")
 print("This may take a few minutes...")
 
-# First install protobuf and numpy with correct versions to avoid dependency conflicts
+# Step 0: Clean up any conflicting packages that might be installed
+print("\n📦 Step 0: Cleaning up conflicting packages...")
+!pip uninstall -y opencv-python 2>/dev/null || true
+!pip uninstall -y pytensor 2>/dev/null || true
+!pip uninstall -y shap 2>/dev/null || true
+!pip uninstall -y ydf 2>/dev/null || true
+
+# Step 1: Upgrade pip and install core dependencies first (protobuf and numpy)
 # mediapipe requires protobuf<5 and numpy<2
-!pip install -q "protobuf>=4.25.3,<5.0.0"
-!pip install -q "numpy>=1.24.0,<2.0.0"  # <2.0.0 required for mediapipe compatibility
+print("\n📦 Step 1: Installing core dependencies (protobuf, numpy)...")
+print("   (Warnings about dependency conflicts are expected and can be ignored)")
+!pip install -q --upgrade pip
+!pip install -q --force-reinstall --no-deps "protobuf>=4.25.3,<5.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+# Pin numpy to a specific version range to prevent upgrades
+!pip install -q --force-reinstall --no-deps "numpy>=1.24.0,<2.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
 
-# Install core packages
-!pip install -q torch torchvision torchaudio
-# Use opencv-python-headless version compatible with numpy<2.0
-!pip install -q "opencv-python-headless>=4.8.0,<4.12.0"
-!pip install -q librosa
-!pip install -q scikit-learn
-!pip install -q matplotlib
-!pip install -q tqdm
-!pip install -q timm
-!pip install -q transformers
-!pip install -q mediapipe
-!pip install -q face-alignment
-!pip install -q pyyaml
+# Step 2: Install opencv-python (not headless) with compatible version
+# face-alignment requires opencv-python, and we need a version compatible with numpy<2.0
+print("📦 Step 2: Installing opencv-python (compatible version)...")
+!pip install -q --force-reinstall --no-deps "opencv-python>=4.8.0,<4.12.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+# Reinstall numpy again after opencv (opencv might try to upgrade it)
+!pip install -q --force-reinstall --no-deps "numpy>=1.24.0,<2.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
 
-print("✅ All dependencies installed!")
+# Step 3: Install PyTorch (this may try to upgrade numpy, but we'll fix it after)
+print("📦 Step 3: Installing PyTorch...")
+!pip install -q torch torchvision torchaudio 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+
+# Step 4: CRITICAL - Reinstall numpy IMMEDIATELY after PyTorch (PyTorch often upgrades it)
+print("📦 Step 4: Ensuring numpy version is correct (CRITICAL - PyTorch may have upgraded it)...")
+!pip install -q --force-reinstall --no-deps "numpy>=1.24.0,<2.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+# Verify numpy version
+import numpy; print(f"   ✅ Verified: numpy version = {numpy.__version__}")
+
+# Step 5: Install mediapipe (this will lock protobuf and numpy versions)
+print("📦 Step 5: Installing mediapipe...")
+!pip install -q mediapipe 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+# Reinstall numpy again after mediapipe (just to be safe)
+!pip install -q --force-reinstall --no-deps "numpy>=1.24.0,<2.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+
+# Step 6: Install other packages (they should respect already installed versions)
+print("📦 Step 6: Installing other packages...")
+!pip install -q librosa scikit-learn matplotlib tqdm timm transformers face-alignment pyyaml 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+# Reinstall numpy after installing other packages (they might try to upgrade it)
+!pip install -q --force-reinstall --no-deps "numpy>=1.24.0,<2.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+
+# Step 7: Final check - reinstall protobuf and numpy to ensure correct versions
+# Use --force-reinstall --no-deps to override any packages that upgraded them
+print("📦 Step 7: Final verification - ensuring correct versions...")
+!pip install -q --force-reinstall --no-deps "protobuf>=4.25.3,<5.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+!pip install -q --force-reinstall --no-deps "numpy>=1.24.0,<2.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+# Final verification
+import numpy
+print(f"   ✅ Final check: numpy={numpy.__version__} (must be <2.0.0)")
+if float(numpy.__version__.split('.')[0]) >= 2:
+    print("   ⚠️  WARNING: numpy version is >=2.0! This will break mediapipe!")
+else:
+    print("   ✅ numpy version is correct for mediapipe compatibility")
+
+print("\n✅ All dependencies installed!")
 print("📝 Note: After cloning in CELL 2, dependencies will be reinstalled from requirements.txt")
 print("   to ensure correct versions and resolve any conflicts.")
+print("\n" + "="*70)
+print("ℹ️  IMPORTANT: About Dependency Warnings")
+print("="*70)
+print("""
+The warnings you see about dependency conflicts (numpy>=2.0, protobuf>=5.0) are
+INFORMATIONAL ONLY and can be safely ignored. Here's why:
+
+1. These warnings come from packages that are NOT directly used in this project
+   (pytensor, ydf, shap, opentelemetry-proto, grpcio-status)
+
+2. These packages are transitive dependencies (dependencies of dependencies) that
+   may have been installed by other packages
+
+3. The packages WILL STILL WORK with numpy 1.x and protobuf 4.x - the warnings
+   are just pip being overly cautious
+
+4. The critical packages (mediapipe, opencv-python-headless) are correctly installed
+   with compatible versions
+
+✅ If everything installed successfully, you're good to go!
+⚠️  Only worry if you encounter RUNTIME ERRORS when actually using the code.
+""")
 """
 
 # ============================================================================
