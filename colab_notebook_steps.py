@@ -298,12 +298,148 @@ import os
 if os.path.exists('experiments/checkpoints/checkpoint_best.pth'):
     files.download('experiments/checkpoints/checkpoint_best.pth')
     print("✅ Best checkpoint downloaded!")
-
+    
 # Download latest checkpoint
 if os.path.exists('experiments/checkpoints/checkpoint_latest.pth'):
     files.download('experiments/checkpoints/checkpoint_latest.pth')
     print("✅ Latest checkpoint downloaded!")
 
 print("🎉 All done!")
+"""
+
+# ============================================================================
+# CELL 8: Evaluate Model on Test Set (OPTIONAL)
+# ============================================================================
+"""
+# Evaluate the trained model on the test set
+import sys
+import os
+
+# Add current directory to Python path
+sys.path.insert(0, os.getcwd())
+
+print("🔍 Evaluating model on test set...")
+
+# Import and run evaluation directly
+from scripts.evaluate import main
+import sys as sys_module
+
+# Save original sys.argv
+original_argv = sys_module.argv.copy()
+
+# Set command line arguments for evaluation
+sys_module.argv = [
+    'evaluate.py',
+    '--checkpoint', 'experiments/checkpoints/checkpoint_best.pth',
+    '--config', 'experiments/configs/default.yaml',
+    '--data_dir', 'data',
+    '--split', 'test',
+    '--batch_size', '2'
+]
+
+try:
+    main()
+    print("\n✅ Evaluation complete! Check the results above.")
+except Exception as e:
+    print(f"\n⚠️  Evaluation error: {e}")
+    import traceback
+    traceback.print_exc()
+finally:
+    # Restore original sys.argv
+    sys_module.argv = original_argv
+"""
+
+# ============================================================================
+# CELL 9: Test Inference on a Single Video (OPTIONAL)
+# ============================================================================
+"""
+# Test inference on a single video file
+import sys
+import os
+
+# Add current directory to Python path so we can import 'src' module
+sys.path.insert(0, os.getcwd())
+
+import torch
+from src.inference.pipeline import DeepfakeInferencePipeline
+from pathlib import Path
+
+# Path to your test video (update this path)
+test_video_path = "data/test/real/sample_video.mp4"  # Change this to your video path
+
+if os.path.exists(test_video_path):
+    print(f"🎥 Testing inference on: {test_video_path}")
+    
+    # Initialize pipeline
+    pipeline = DeepfakeInferencePipeline(
+        model_path='experiments/checkpoints/checkpoint_best.pth',
+        device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
+        num_frames=16,  # Match your config
+        frame_size=(224, 224)
+    )
+    
+    # Run prediction
+    result = pipeline.predict(test_video_path)
+    
+    print("\n" + "="*60)
+    print("📊 Prediction Results:")
+    print("="*60)
+    print(f"Prediction: {result['prediction'].upper()}")
+    print(f"Confidence: {result['confidence']:.2%}")
+    print(f"Real probability: {result['probabilities']['real']:.2%}")
+    print(f"Fake probability: {result['probabilities']['fake']:.2%}")
+    print("="*60)
+else:
+    print(f"⚠️  Video not found at: {test_video_path}")
+    print("Please update the test_video_path variable with a valid video path.")
+"""
+
+# ============================================================================
+# CELL 10: Check Training Metrics and Logs (OPTIONAL)
+# ============================================================================
+"""
+# View training logs and metrics
+import os
+import torch
+from pathlib import Path
+
+checkpoint_dir = Path('experiments/checkpoints')
+logs_dir = checkpoint_dir / 'logs'
+
+print("📊 Training Summary:")
+print("="*60)
+
+# Check for checkpoint files
+if (checkpoint_dir / 'checkpoint_best.pth').exists():
+    checkpoint = torch.load(checkpoint_dir / 'checkpoint_best.pth', map_location='cpu')
+    if 'best_val_auc' in checkpoint:
+        print(f"✅ Best Validation AUC: {checkpoint['best_val_auc']:.4f}")
+    if 'epoch' in checkpoint:
+        print(f"✅ Best model from epoch: {checkpoint['epoch']}")
+    print(f"✅ Checkpoint saved at: {checkpoint_dir / 'checkpoint_best.pth'}")
+else:
+    print("⚠️  Best checkpoint not found")
+
+if (checkpoint_dir / 'checkpoint_latest.pth').exists():
+    checkpoint = torch.load(checkpoint_dir / 'checkpoint_latest.pth', map_location='cpu')
+    if 'epoch' in checkpoint:
+        print(f"✅ Latest checkpoint from epoch: {checkpoint['epoch']}")
+    print(f"✅ Latest checkpoint saved at: {checkpoint_dir / 'checkpoint_latest.pth'}")
+
+# Check for tensorboard logs
+if logs_dir.exists():
+    print(f"\n📈 TensorBoard logs available at: {logs_dir}")
+    print("   To view: tensorboard --logdir experiments/checkpoints/logs")
+else:
+    print("\n⚠️  No TensorBoard logs found")
+
+print("\n" + "="*60)
+print("💡 Next Steps:")
+print("="*60)
+print("1. Download checkpoints (CELL 7) to use on your local machine")
+print("2. Evaluate on test set (CELL 8) to see final performance")
+print("3. Test inference on videos (CELL 9) to try the model")
+print("4. Use the downloaded checkpoint with demo/app.py locally")
+print("="*60)
 """
 
