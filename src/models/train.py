@@ -15,6 +15,7 @@ from typing import Dict, Optional
 import argparse
 import sys
 import platform
+import os
 
 # Handle imports for both direct execution and module import
 try:
@@ -349,14 +350,26 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
     
-    # Windows compatibility: MediaPipe objects cannot be pickled for multiprocessing
-    # Set num_workers=0 on Windows to avoid pickling issues
+    # Windows/Colab compatibility: MediaPipe objects cannot be pickled for multiprocessing
+    # Set num_workers=0 on Windows or Colab to avoid pickling issues and segfaults
     is_windows = platform.system() == 'Windows'
-    num_workers = 0 if is_windows else config['training'].get('num_workers', 4)
-    pin_memory = torch.cuda.is_available() and not is_windows
+    is_colab = 'COLAB_GPU' in os.environ or 'COLAB_JUPYTER_IP' in os.environ or os.path.exists('/content')
+    
+    # Force num_workers=0 if config says so, or if on Windows/Colab
+    config_num_workers = config['training'].get('num_workers', 4)
+    if config_num_workers == 0 or is_windows or is_colab:
+        num_workers = 0
+    else:
+        num_workers = config_num_workers
+    
+    pin_memory = torch.cuda.is_available()
     
     if is_windows:
         print("Windows detected: Setting num_workers=0 to avoid multiprocessing pickling issues")
+    elif is_colab:
+        print("Colab detected: Setting num_workers=0 to avoid MediaPipe multiprocessing segfault")
+    elif num_workers == 0:
+        print("num_workers set to 0 in config to avoid multiprocessing issues")
     
     # Datasets
     train_dataset = DeepfakeDataset(
