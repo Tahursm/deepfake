@@ -5,8 +5,9 @@ Copy each section into separate cells in Google Colab
 RECENT IMPROVEMENTS:
 - ImageNet normalization for better accuracy (pretrained backbones)
 - Focal loss enabled for better class imbalance handling
-- Optimized config: batch_size=4, epochs=50, num_frames=32 (for T4 GPU)
-- Improved training with better hyperparameters
+- Optimized config: batch_size=4 (local T4), epochs=50, num_frames=32 (for better temporal modeling)
+- Improved training with better hyperparameters (patience=15, cosine scheduler)
+- Auto-detection of Colab environment in train.py (sets num_workers=0 automatically)
 """
 
 # ============================================================================
@@ -272,25 +273,31 @@ if os.path.exists(config_path):
     # Update for Colab GPU
     # Note: Default config is optimized for T4 GPU (batch_size=4, epochs=50, num_frames=32)
     # For Colab, we adjust batch_size and set num_workers=0 to avoid MediaPipe issues
+    # Note: train.py auto-detects Colab and sets num_workers=0, but we set it here for clarity
     if 'training' in config:
-        # Colab T4 GPU can handle batch_size=2-4, but we'll use 2 to be safe
-        config['training']['batch_size'] = 2  # Safe for Colab T4 GPU
+        original_batch = config['training'].get('batch_size', 4)
+        # Colab T4 GPU can handle batch_size=2-4, but we'll use 2 to be safe and avoid OOM
+        config['training']['batch_size'] = 2  # Safe for Colab T4 GPU (default is 4 for local T4)
         config['training']['num_workers'] = 0  # CRITICAL: Set to 0 to avoid MediaPipe multiprocessing segfault
-        # Keep other optimized settings (epochs=50, focal_loss=true, etc.)
+        # Keep other optimized settings (epochs=50, focal_loss=true, patience=15, etc.)
     
-    # Ensure num_frames matches (default is now 32 for better accuracy)
+    # Ensure num_frames matches (default is now 32 for better temporal modeling)
     if 'data' in config:
-        print(f"   Using num_frames: {config['data'].get('num_frames', 32)}")
+        num_frames = config['data'].get('num_frames', 32)
+        print(f"   Using num_frames: {num_frames} (optimized for better temporal modeling)")
     
     with open(config_path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
     
     print("✅ Config updated for Colab!")
-    print(f"   Batch size: {config['training']['batch_size']}")
+    print(f"   Batch size: {original_batch} → {config['training']['batch_size']} (adjusted for Colab)")
     print(f"   Epochs: {config['training'].get('epochs', 50)}")
-    print(f"   Focal loss: {config['training'].get('use_focal_loss', True)}")
+    print(f"   Num frames: {config['data'].get('num_frames', 32)}")
+    print(f"   Focal loss: {config['training'].get('use_focal_loss', True)} (enabled for class imbalance)")
+    print(f"   Early stopping patience: {config['training'].get('patience', 15)}")
     print(f"   num_workers: {config['training']['num_workers']} (set to 0 for Colab compatibility)")
-    print("\n💡 Note: Config includes ImageNet normalization and focal loss for better accuracy!")
+    print("\n💡 Note: Config includes ImageNet normalization, focal loss, and optimized hyperparameters!")
+    print("💡 Note: train.py will auto-detect Colab and enforce num_workers=0 even if config says otherwise")
 else:
     print("⚠️  Config file not found. Please ensure you've cloned/uploaded the repository.")
 """
@@ -300,29 +307,66 @@ else:
 # ============================================================================
 """
 # Start training
+# Note: train.py will automatically detect Colab and set num_workers=0
+# even if the config has a different value (for safety)
+print("🚀 Starting training...")
+print("This will take a while depending on your dataset size and GPU availability.")
+print("="*60)
+
 !python src/models/train.py --config experiments/configs/default.yaml
 
+print("="*60)
 print("✅ Training complete!")
+print("\n💡 Tip: Check experiments/checkpoints/ for saved model checkpoints")
+print("💡 Tip: Use CELL 8 to evaluate the model on the test set")
 """
 
 # ============================================================================
-# CELL 7: Download Results   ( Didn't ran bcz it was creating multiple checkpoint files)
+# CELL 7: Download Results
 # ============================================================================
 """
 from google.colab import files
 import os
 
-# Download best checkpoint
-if os.path.exists('experiments/checkpoints/checkpoint_best.pth'):
-    files.download('experiments/checkpoints/checkpoint_best.pth')
-    print("✅ Best checkpoint downloaded!")
-    
-# Download latest checkpoint
-if os.path.exists('experiments/checkpoints/checkpoint_latest.pth'):
-    files.download('experiments/checkpoints/checkpoint_latest.pth')
-    print("✅ Latest checkpoint downloaded!")
+print("📥 Downloading training results...")
+print("="*60)
 
-print("🎉 All done!")
+# Download best model checkpoint (recommended - highest validation AUC)
+checkpoint_path = 'experiments/checkpoints/checkpoint_best.pth'
+if os.path.exists(checkpoint_path):
+    print(f"\n📥 Downloading best checkpoint: {checkpoint_path}")
+    files.download(checkpoint_path)
+    print("✅ Best checkpoint downloaded!")
+else:
+    print(f"⚠️  Best checkpoint not found at: {checkpoint_path}")
+
+# Download latest checkpoint (most recent epoch)
+latest_checkpoint = 'experiments/checkpoints/checkpoint_latest.pth'
+if os.path.exists(latest_checkpoint):
+    print(f"\n📥 Downloading latest checkpoint: {latest_checkpoint}")
+    files.download(latest_checkpoint)
+    print("✅ Latest checkpoint downloaded!")
+else:
+    print(f"⚠️  Latest checkpoint not found at: {latest_checkpoint}")
+
+# Optionally download logs (TensorBoard)
+logs_dir = 'experiments/checkpoints/logs'
+if os.path.exists(logs_dir):
+    print("\n📦 Creating logs archive...")
+    !zip -r results_logs.zip experiments/checkpoints/logs 2>/dev/null || echo "Logs directory empty or zip failed"
+    if os.path.exists('results_logs.zip'):
+        files.download('results_logs.zip')
+        print("✅ Logs downloaded!")
+
+print("\n" + "="*60)
+print("🎉 ALL DONE!")
+print("="*60)
+print("\nYour trained model checkpoints have been downloaded.")
+print("You can now use these checkpoints for inference on your local machine.")
+print("\nTo use the model locally:")
+print("1. Save the downloaded checkpoint to: experiments/checkpoints/")
+print("2. Run inference using: python demo/app.py")
+print("3. Or evaluate using: python scripts/evaluate.py --checkpoint experiments/checkpoints/checkpoint_best.pth")
 """
 
 # ============================================================================
@@ -389,11 +433,11 @@ if os.path.exists(test_video_path):
     print(f"🎥 Testing inference on: {test_video_path}")
     
     # Initialize pipeline
-    # Note: num_frames should match your config (default is now 32 for better accuracy)
+    # Note: num_frames should match your config (default is now 32 for better temporal modeling)
     pipeline = DeepfakeInferencePipeline(
         model_path='experiments/checkpoints/checkpoint_best.pth',
         device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-        num_frames=32,  # Updated to match new config (was 16, now 32 for better temporal modeling)
+        num_frames=32,  # Matches config default (32 frames for better temporal modeling)
         frame_size=(224, 224)
     )
     
@@ -410,10 +454,12 @@ if os.path.exists(test_video_path):
     print(f"Real probability: {result['probabilities']['real']:.2%}")
     print(f"Fake probability: {result['probabilities']['fake']:.2%}")
     print("="*60)
-    print("💡 Note: Model uses ImageNet normalization for improved accuracy!")
+    print("💡 Note: Model uses ImageNet normalization, focal loss, and optimized hyperparameters!")
 else:
     print(f"⚠️  Video not found at: {test_video_path}")
     print("Please update the test_video_path variable with a valid video path.")
+    print("\n💡 Tip: You can use any video from your test set, e.g.,")
+    print("   test_video_path = 'data/test/real/sample_video.mp4'")
 """
 
 # ============================================================================
