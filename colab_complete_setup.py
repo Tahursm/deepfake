@@ -9,10 +9,15 @@ Copy each section into separate cells in Google Colab and run them in order.
 # CELL 1: Install Dependencies
 # ============================================================================
 """
-# Install all required packages
+# Install all required packages with version constraints to avoid conflicts
 print("📦 Installing dependencies...")
 print("This may take a few minutes...")
 
+# First install protobuf and numpy with correct versions to avoid dependency conflicts
+!pip install -q "protobuf>=5.29.1,<6.0.0"
+!pip install -q "numpy>=1.24.0,<2.0.0"  # <2.0.0 required for mediapipe compatibility
+
+# Install core packages
 !pip install -q torch torchvision torchaudio
 !pip install -q opencv-python-headless
 !pip install -q librosa
@@ -26,6 +31,8 @@ print("This may take a few minutes...")
 !pip install -q pyyaml
 
 print("✅ All dependencies installed!")
+print("📝 Note: After cloning in CELL 2, dependencies will be reinstalled from requirements.txt")
+print("   to ensure correct versions and resolve any conflicts.")
 """
 
 # ============================================================================
@@ -62,8 +69,15 @@ if os.path.exists(repo_name):
     shutil.rmtree(repo_name)
     
     print("✅ Repository cloned and files moved!")
-    print("📁 Project structure:")
+    print("\n📁 Project structure:")
     !ls -la
+    
+    # Install dependencies from requirements.txt to ensure correct versions
+    # This overrides any versions installed in CELL 1 with the project's constraints
+    print("\n📦 Installing dependencies from requirements.txt...")
+    print("   (This ensures correct versions and resolves dependency conflicts)")
+    !pip install -q -r requirements.txt
+    print("✅ Dependencies installed from requirements.txt!")
 else:
     print("⚠️  Repository not found. Please check the GITHUB_REPO URL.")
 """
