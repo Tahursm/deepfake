@@ -1,6 +1,12 @@
 """
 Google Colab Notebook - Step by Step Instructions
 Copy each section into separate cells in Google Colab
+
+RECENT IMPROVEMENTS:
+- ImageNet normalization for better accuracy (pretrained backbones)
+- Focal loss enabled for better class imbalance handling
+- Optimized config: batch_size=4, epochs=50, num_frames=32 (for T4 GPU)
+- Improved training with better hyperparameters
 """
 
 # ============================================================================
@@ -264,15 +270,27 @@ if os.path.exists(config_path):
         config = yaml.safe_load(f)
     
     # Update for Colab GPU
+    # Note: Default config is optimized for T4 GPU (batch_size=4, epochs=50, num_frames=32)
+    # For Colab, we adjust batch_size and set num_workers=0 to avoid MediaPipe issues
     if 'training' in config:
-        config['training']['batch_size'] = 2  # Increase for GPU
-        config['training']['num_workers'] = 0  # Set to 0 to avoid MediaPipe multiprocessing issues
+        # Colab T4 GPU can handle batch_size=2-4, but we'll use 2 to be safe
+        config['training']['batch_size'] = 2  # Safe for Colab T4 GPU
+        config['training']['num_workers'] = 0  # CRITICAL: Set to 0 to avoid MediaPipe multiprocessing segfault
+        # Keep other optimized settings (epochs=50, focal_loss=true, etc.)
+    
+    # Ensure num_frames matches (default is now 32 for better accuracy)
+    if 'data' in config:
+        print(f"   Using num_frames: {config['data'].get('num_frames', 32)}")
     
     with open(config_path, 'w') as f:
         yaml.dump(config, f, default_flow_style=False)
     
     print("✅ Config updated for Colab!")
     print(f"   Batch size: {config['training']['batch_size']}")
+    print(f"   Epochs: {config['training'].get('epochs', 50)}")
+    print(f"   Focal loss: {config['training'].get('use_focal_loss', True)}")
+    print(f"   num_workers: {config['training']['num_workers']} (set to 0 for Colab compatibility)")
+    print("\n💡 Note: Config includes ImageNet normalization and focal loss for better accuracy!")
 else:
     print("⚠️  Config file not found. Please ensure you've cloned/uploaded the repository.")
 """
@@ -334,7 +352,7 @@ sys_module.argv = [
     '--config', 'experiments/configs/default.yaml',
     '--data_dir', 'data',
     '--split', 'test',
-    '--batch_size', '2'
+    '--batch_size', '2'  # Match Colab batch_size setting
 ]
 
 try:
@@ -371,10 +389,11 @@ if os.path.exists(test_video_path):
     print(f"🎥 Testing inference on: {test_video_path}")
     
     # Initialize pipeline
+    # Note: num_frames should match your config (default is now 32 for better accuracy)
     pipeline = DeepfakeInferencePipeline(
         model_path='experiments/checkpoints/checkpoint_best.pth',
         device=torch.device('cuda' if torch.cuda.is_available() else 'cpu'),
-        num_frames=16,  # Match your config
+        num_frames=32,  # Updated to match new config (was 16, now 32 for better temporal modeling)
         frame_size=(224, 224)
     )
     
@@ -386,9 +405,12 @@ if os.path.exists(test_video_path):
     print("="*60)
     print(f"Prediction: {result['prediction'].upper()}")
     print(f"Confidence: {result['confidence']:.2%}")
+    if 'is_uncertain' in result and result['is_uncertain']:
+        print("⚠️  Warning: Low confidence prediction (uncertain)")
     print(f"Real probability: {result['probabilities']['real']:.2%}")
     print(f"Fake probability: {result['probabilities']['fake']:.2%}")
     print("="*60)
+    print("💡 Note: Model uses ImageNet normalization for improved accuracy!")
 else:
     print(f"⚠️  Video not found at: {test_video_path}")
     print("Please update the test_video_path variable with a valid video path.")
