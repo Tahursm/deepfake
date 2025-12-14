@@ -43,9 +43,36 @@ class DeepfakeInferencePipeline:
         checkpoint = torch.load(model_path, map_location=self.device)
         config = checkpoint.get('config', {})
         
-        model_config = config.get('model', {})
+        # If config is missing or empty, try to load from default config file
+        if not config or not config.get('model'):
+            import yaml
+            config_path = Path(model_path).parent.parent / "configs" / "default.yaml"
+            if config_path.exists():
+                with open(config_path, 'r') as f:
+                    config = yaml.safe_load(f)
+        
+        model_config = config.get('model', {}) if config else {}
+        
+        # Auto-detect video_backbone from state dict if not in config
+        state_dict = checkpoint['model_state_dict']
+        video_backbone = model_config.get('video_backbone')
+        
+        if not video_backbone:
+            # Detect from state dict keys
+            backbone_keys = [k for k in state_dict.keys() if 'video_stream.backbone' in k]
+            if any('backbone.0.0.0.weight' in k or 'backbone.0.1.0.block' in k for k in backbone_keys):
+                video_backbone = 'efficientnet_b0'
+                print(f"Auto-detected video_backbone: {video_backbone} (from state dict keys)")
+            elif any('backbone.0.weight' in k or 'backbone.4.0.conv1' in k for k in backbone_keys):
+                video_backbone = 'resnet50'
+                print(f"Auto-detected video_backbone: {video_backbone} (from state dict keys)")
+            else:
+                # Default to efficientnet_b0 based on config file
+                video_backbone = 'efficientnet_b0'
+                print(f"Using default video_backbone: {video_backbone}")
+        
         self.model = DeepfakeDetectionModel(
-            video_backbone=model_config.get('video_backbone', 'resnet50'),
+            video_backbone=video_backbone,
             video_embedding_dim=model_config.get('video_embedding_dim', 512),
             num_frames=num_frames,
             n_mels=model_config.get('n_mels', 128),
