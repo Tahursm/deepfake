@@ -283,13 +283,22 @@ class DeepfakeDataset(Dataset):
         # Augment
         faces, mouths, spectrogram = self._augment(faces, mouths, spectrogram)
         
-        # Convert to tensors
+        # Convert to tensors and normalize
+        # ImageNet normalization for pretrained backbones (ResNet/EfficientNet)
+        # NOTE: This is required for pretrained models to work correctly
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        
         # Faces: (num_frames, H, W, C) -> (num_frames, C, H, W)
         faces = torch.from_numpy(faces).float().permute(0, 3, 1, 2) / 255.0
+        faces = (faces - mean) / std
+        
         mouths = torch.from_numpy(mouths).float().permute(0, 3, 1, 2) / 255.0
+        mouths = (mouths - mean) / std
+        
         spectrogram = torch.from_numpy(spectrogram).float().unsqueeze(0)  # Add channel dim
         
-        # Normalize spectrogram
+        # Normalize spectrogram (per-sample normalization)
         spectrogram = (spectrogram - spectrogram.mean()) / (spectrogram.std() + 1e-8)
         
         label_tensor = torch.tensor(label, dtype=torch.long)

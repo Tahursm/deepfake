@@ -1,13 +1,14 @@
 # Default configuration for deepfake detection training
+# Optimized for T4 GPU (16GB VRAM) with focus on accuracy
 
 data:
   data_dir: "data"
-  num_frames: 16  # Reduced to 16 for faster training
+  num_frames: 32  # Increased for better temporal modeling (T4 can handle this)
   frame_size: [224, 224]
   fps: 25.0
 
 model:
-  video_backbone: "efficientnet_b0"  # Changed to lighter model (faster than resnet50)
+  video_backbone: "efficientnet_b0"  # Efficient and accurate
   video_embedding_dim: 512
   n_mels: 128
   audio_embedding_dim: 512
@@ -19,26 +20,27 @@ model:
   use_cross_attention: true
 
 training:
-  batch_size: 1  # Already minimum (cannot reduce further)
-  epochs: 5  # Reduced to 10 for initial testing (increase after testing)
+  batch_size: 4  # Optimized for T4 GPU (16GB VRAM) - can handle batch_size 4-6
+  epochs: 50  # Increased for better accuracy and convergence
   learning_rate: 0.0001
   weight_decay: 0.01
-  num_workers: 2  # Reduced for small dataset
+  num_workers: 6  # Increased for faster data loading (T4 system can handle this)
+  pin_memory: true  # Faster GPU transfer
   checkpoint_dir: "experiments/checkpoints"
   
-  # Loss configuration
-  use_focal_loss: false
+  # Loss configuration - enabled focal loss for better class imbalance handling
+  use_focal_loss: true  # Enabled for better handling of imbalanced datasets
   focal_alpha: 1.0
   focal_gamma: 2.0
   label_smoothing: 0.1
   auxiliary_loss_weight: 0.1
   
   # Optimization
-  scheduler: "cosine"  # "cosine" or "onecycle"
+  scheduler: "cosine"  # Cosine annealing for smooth convergence
   min_lr: 0.000001
   grad_clip: 1.0
   
-  # Early stopping
+  # Early stopping - increased patience for better convergence
   early_stopping: true
-  patience: 10
+  patience: 15  # Increased to allow model to converge better
 

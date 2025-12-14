@@ -197,12 +197,23 @@ class DeepfakeInferencePipeline:
         # Preprocess
         data = self.preprocess_video(video_path)
         
-        # Convert to tensors
+        # Convert to tensors and normalize
+        # ImageNet normalization for pretrained backbones (ResNet/EfficientNet)
+        # NOTE: If your model was trained without ImageNet normalization, you need to retrain it
+        # or the predictions will be inaccurate. This is the correct normalization for pretrained models.
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        
+        # Convert: (num_frames, H, W, C) -> (num_frames, C, H, W)
         faces = torch.from_numpy(data['faces']).float().permute(0, 3, 1, 2) / 255.0
+        faces = (faces - mean) / std
+        
         mouths = torch.from_numpy(data['mouths']).float().permute(0, 3, 1, 2) / 255.0
+        mouths = (mouths - mean) / std
+        
         spectrogram = torch.from_numpy(data['spectrogram']).float().unsqueeze(0)
         
-        # Normalize spectrogram
+        # Normalize spectrogram (per-sample normalization to match training)
         spectrogram = (spectrogram - spectrogram.mean()) / (spectrogram.std() + 1e-8)
         
         # Add batch dimension
@@ -219,14 +230,19 @@ class DeepfakeInferencePipeline:
                 return_embeddings=return_explanations
             )
         
-        # Get prediction
+        # Get prediction with confidence threshold
         probs = output['probs'][0].cpu().numpy()
-        prediction = int(np.argmax(probs))
-        confidence = float(probs[prediction])
+        prediction_idx = int(np.argmax(probs))
+        confidence = float(probs[prediction_idx])
+        
+        # Apply confidence threshold (if confidence is too low, mark as uncertain)
+        confidence_threshold = 0.5  # Minimum confidence for reliable prediction
+        is_uncertain = confidence < confidence_threshold
         
         result = {
-            'prediction': 'fake' if prediction == 1 else 'real',
+            'prediction': 'fake' if prediction_idx == 1 else 'real',
             'confidence': confidence,
+            'is_uncertain': is_uncertain,
             'probabilities': {
                 'real': float(probs[0]),
                 'fake': float(probs[1])

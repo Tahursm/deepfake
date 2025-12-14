@@ -356,20 +356,22 @@ def main():
     is_colab = 'COLAB_GPU' in os.environ or 'COLAB_JUPYTER_IP' in os.environ or os.path.exists('/content')
     
     # Force num_workers=0 if config says so, or if on Windows/Colab
+    # Note: On Linux with T4 GPU, num_workers can be 4-8 for better performance
     config_num_workers = config['training'].get('num_workers', 4)
     if config_num_workers == 0 or is_windows or is_colab:
         num_workers = 0
+        if is_windows:
+            print("Windows detected: Setting num_workers=0 to avoid multiprocessing pickling issues")
+        elif is_colab:
+            print("Colab detected: Setting num_workers=0 to avoid MediaPipe multiprocessing segfault")
     else:
         num_workers = config_num_workers
+        print(f"Using num_workers={num_workers} for faster data loading")
     
-    pin_memory = torch.cuda.is_available()
-    
-    if is_windows:
-        print("Windows detected: Setting num_workers=0 to avoid multiprocessing pickling issues")
-    elif is_colab:
-        print("Colab detected: Setting num_workers=0 to avoid MediaPipe multiprocessing segfault")
-    elif num_workers == 0:
-        print("num_workers set to 0 in config to avoid multiprocessing issues")
+    # Use pin_memory from config if available, otherwise auto-detect based on CUDA
+    pin_memory = config['training'].get('pin_memory', torch.cuda.is_available())
+    if pin_memory and torch.cuda.is_available():
+        print("pin_memory enabled for faster GPU data transfer")
     
     # Datasets
     train_dataset = DeepfakeDataset(
