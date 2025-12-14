@@ -14,12 +14,14 @@ print("📦 Installing dependencies...")
 print("This may take a few minutes...")
 
 # First install protobuf and numpy with correct versions to avoid dependency conflicts
-!pip install -q "protobuf>=5.29.1,<6.0.0"
+# mediapipe requires protobuf<5 and numpy<2
+!pip install -q "protobuf>=4.25.3,<5.0.0"
 !pip install -q "numpy>=1.24.0,<2.0.0"  # <2.0.0 required for mediapipe compatibility
 
 # Install core packages
 !pip install -q torch torchvision torchaudio
-!pip install -q opencv-python-headless
+# Use opencv-python-headless version compatible with numpy<2.0
+!pip install -q "opencv-python-headless>=4.8.0,<4.12.0"
 !pip install -q librosa
 !pip install -q scikit-learn
 !pip install -q matplotlib

@@ -4,8 +4,9 @@ torchvision>=0.15.0
 torchaudio>=2.0.0
 
 # Computer Vision & Image Processing
-opencv-python>=4.8.0
-mediapipe>=0.10.0
+# Note: opencv-python pinned to version compatible with numpy<2.0
+opencv-python>=4.8.0,<4.12.0
+mediapipe>=0.10.0,<0.11.0
 Pillow>=10.0.0
 
 # Audio Processing
@@ -41,10 +42,13 @@ wandb>=0.15.0
 # Video Processing
 ffmpeg-python>=0.2.0
 
-# Protobuf version constraint (updated to resolve conflicts with ydf, opentelemetry-proto, grpcio-status)
-# Note: If you need mysql-connector-python, you may need to uninstall it first:
+# Protobuf version constraint (pinned for mediapipe compatibility)
+# mediapipe 0.10.21 requires protobuf<5,>=4.25.3
+# Note: Some packages (ydf, opentelemetry-proto, grpcio-status) may show warnings
+# about requiring protobuf>=5.0, but they should still function with protobuf 4.x
+# If you need mysql-connector-python, you may need to uninstall it first:
 # pip uninstall mysql-connector-python
-protobuf>=5.29.1,<6.0.0
+protobuf>=4.25.3,<5.0.0
 
 # Optional: For better performance
 # Install CUDA-enabled PyTorch if GPU available
