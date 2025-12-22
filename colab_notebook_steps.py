@@ -78,6 +78,30 @@ else:
 print("\n✅ All dependencies installed!")
 print("📝 Note: After cloning in CELL 2, dependencies will be reinstalled from requirements.txt")
 print("   to ensure correct versions and resolve any conflicts.")
+
+# Quick verification of critical packages
+print("\n🔍 Quick verification of critical packages...")
+try:
+    import mediapipe as mp
+    if hasattr(mp, 'solutions'):
+        print("   ✅ mediapipe: Installed and solutions module accessible")
+    else:
+        print("   ⚠️  mediapipe: Installed but solutions module missing - may need reinstall")
+except Exception as e:
+    print(f"   ❌ mediapipe: Import failed - {e}")
+
+try:
+    import numpy as np
+    print(f"   ✅ numpy: {np.__version__}")
+except Exception as e:
+    print(f"   ❌ numpy: Import failed - {e}")
+
+try:
+    import cv2
+    print(f"   ✅ opencv-python: {cv2.__version__}")
+except Exception as e:
+    print(f"   ❌ opencv-python: Import failed - {e}")
+
 print("\n" + "="*70)
 print("ℹ️  IMPORTANT: About Dependency Warnings")
 print("="*70)
@@ -99,6 +123,8 @@ INFORMATIONAL ONLY and can be safely ignored. Here's why:
 
 ✅ If everything installed successfully, you're good to go!
 ⚠️  Only worry if you encounter RUNTIME ERRORS when actually using the code.
+
+💡 TIP: After CELL 2, run CELL 6 to verify all dependencies before training!
 """)
 """
 
@@ -144,7 +170,14 @@ if os.path.exists(repo_name):
     print("\n📦 Installing dependencies from requirements.txt...")
     print("   (This ensures correct versions and resolves dependency conflicts)")
     !pip install -q -r requirements.txt
+    
+    # Reinstall numpy and protobuf to ensure correct versions after requirements.txt
+    print("\n📦 Ensuring numpy and protobuf versions are correct...")
+    !pip install -q --force-reinstall --no-deps "numpy>=1.24.0,<2.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+    !pip install -q --force-reinstall --no-deps "protobuf>=4.25.3,<5.0.0" 2>&1 | grep -v "ERROR: pip's dependency resolver" || true
+    
     print("✅ Dependencies installed from requirements.txt!")
+    print("\n💡 IMPORTANT: After this cell, run CELL 6 to verify all dependencies before training!")
 else:
     print("⚠️  Repository not found. Please check the GITHUB_REPO URL.")
 """
@@ -303,7 +336,104 @@ else:
 """
 
 # ============================================================================
-# CELL 6: Run Training
+# CELL 6: Verify Critical Dependencies (IMPORTANT!)
+# ============================================================================
+"""
+# Verify that critical dependencies are working correctly
+# This prevents training from failing due to missing or broken dependencies
+print("🔍 Verifying critical dependencies...")
+print("="*60)
+
+import sys
+errors = []
+
+# Check numpy version
+try:
+    import numpy as np
+    np_version = np.__version__
+    if float(np_version.split('.')[0]) >= 2:
+        errors.append(f"❌ numpy version {np_version} is >=2.0! MediaPipe requires numpy<2.0")
+    else:
+        print(f"✅ numpy version: {np_version} (compatible)")
+except Exception as e:
+    errors.append(f"❌ Failed to import numpy: {e}")
+
+# Check protobuf version
+try:
+    import google.protobuf
+    pb_version = google.protobuf.__version__
+    if float(pb_version.split('.')[0]) >= 5:
+        errors.append(f"❌ protobuf version {pb_version} is >=5.0! MediaPipe requires protobuf<5.0")
+    else:
+        print(f"✅ protobuf version: {pb_version} (compatible)")
+except Exception as e:
+    errors.append(f"❌ Failed to import protobuf: {e}")
+
+# CRITICAL: Check MediaPipe installation
+try:
+    import mediapipe as mp
+    print(f"✅ mediapipe imported successfully")
+    
+    # Check if solutions attribute exists (this is the common failure point)
+    if not hasattr(mp, 'solutions'):
+        errors.append("❌ CRITICAL: mediapipe.solutions is missing! MediaPipe is not properly installed.")
+        errors.append("   Solution: Re-run CELL 1 to reinstall mediapipe, or run:")
+        errors.append("   !pip uninstall -y mediapipe && pip install mediapipe")
+    else:
+        # Try to access face_detection to verify it works
+        try:
+            mp.solutions.face_detection
+            mp.solutions.face_mesh
+            print("✅ mediapipe.solutions is accessible")
+            print("✅ mediapipe face_detection and face_mesh modules are available")
+        except Exception as e:
+            errors.append(f"❌ CRITICAL: Cannot access mediapipe.solutions: {e}")
+            errors.append("   Solution: Re-run CELL 1 to reinstall mediapipe")
+except ImportError as e:
+    errors.append(f"❌ CRITICAL: Failed to import mediapipe: {e}")
+    errors.append("   Solution: Re-run CELL 1 to install mediapipe")
+except Exception as e:
+    errors.append(f"❌ CRITICAL: Unexpected error with mediapipe: {e}")
+    errors.append("   Solution: Re-run CELL 1 to reinstall mediapipe")
+
+# Check other critical imports
+try:
+    import cv2
+    print(f"✅ opencv-python imported successfully (version: {cv2.__version__})")
+except Exception as e:
+    errors.append(f"❌ Failed to import opencv-python: {e}")
+
+try:
+    import torch
+    print(f"✅ PyTorch imported successfully (version: {torch.__version__})")
+    if torch.cuda.is_available():
+        print(f"✅ CUDA available: {torch.cuda.get_device_name(0)}")
+    else:
+        print("⚠️  CUDA not available - training will be slow on CPU")
+except Exception as e:
+    errors.append(f"❌ Failed to import PyTorch: {e}")
+
+print("="*60)
+
+if errors:
+    print("\n❌ VERIFICATION FAILED! Please fix the following issues before training:")
+    print("="*60)
+    for error in errors:
+        print(error)
+    print("="*60)
+    print("\n💡 Recommended actions:")
+    print("1. Re-run CELL 1 to reinstall dependencies")
+    print("2. After CELL 1, re-run CELL 2 to reinstall from requirements.txt")
+    print("3. Then re-run this verification cell (CELL 6)")
+    print("4. Only proceed to training (CELL 7) after all checks pass")
+    raise RuntimeError("Dependency verification failed. Please fix the issues above.")
+else:
+    print("\n✅ All critical dependencies verified successfully!")
+    print("✅ You can proceed to CELL 7 to start training.")
+"""
+
+# ============================================================================
+# CELL 7: Run Training
 # ============================================================================
 """
 # Start training
@@ -322,7 +452,7 @@ print("💡 Tip: Use CELL 8 to evaluate the model on the test set")
 """
 
 # ============================================================================
-# CELL 7: Download Results
+# CELL 8: Download Results
 # ============================================================================
 """
 from google.colab import files
@@ -370,7 +500,7 @@ print("3. Or evaluate using: python scripts/evaluate.py --checkpoint experiments
 """
 
 # ============================================================================
-# CELL 8: Evaluate Model on Test Set (OPTIONAL)
+# CELL 9: Evaluate Model on Test Set (OPTIONAL)
 # ============================================================================
 """
 # Evaluate the trained model on the test set
@@ -412,7 +542,7 @@ finally:
 """
 
 # ============================================================================
-# CELL 9: Test Inference on a Single Video (OPTIONAL)
+# CELL 10: Test Inference on a Single Video (OPTIONAL)
 # ============================================================================
 """
 # Test inference on a single video file
@@ -463,7 +593,7 @@ else:
 """
 
 # ============================================================================
-# CELL 10: Check Training Metrics and Logs (OPTIONAL)
+# CELL 11: Check Training Metrics and Logs (OPTIONAL)
 # ============================================================================
 """
 # View training logs and metrics
